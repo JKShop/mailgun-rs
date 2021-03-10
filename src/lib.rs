@@ -1,7 +1,7 @@
-use reqwest;
 use reqwest::Error as ReqError;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 const MAILGUN_API: &str = "https://api.mailgun.net/v3";
 const MESSAGES_ENDPOINT: &str = "messages";
@@ -22,20 +22,21 @@ pub struct SendResponse {
 }
 
 impl Mailgun {
-    pub fn send(self, sender: &EmailAddress) -> SendResult<SendResponse> {
+    pub async fn send(self, sender: &EmailAddress) -> SendResult<SendResponse> {
         let client = reqwest::Client::new();
         let mut params = self.message.to_params();
         params.insert("from".to_string(), sender.to_string());
         let url = format!("{}/{}/{}", MAILGUN_API, self.domain, MESSAGES_ENDPOINT);
 
-        let mut res = client
+        let res = client
             .post(&url)
             .basic_auth("api", Some(self.api_key.clone()))
             .form(&params)
-            .send()?
+            .send()
+            .await?
             .error_for_status()?;
 
-        let parsed: SendResponse = res.json()?;
+        let parsed: SendResponse = res.json().await?;
         Ok(parsed)
     }
 }
@@ -105,11 +106,17 @@ impl EmailAddress {
     pub fn email(&self) -> &str {
         &self.address
     }
+}
 
-    pub fn to_string(&self) -> String {
-        match self.name {
-            Some(ref name) => format!("{} <{}>", name, self.address),
-            None => self.address.clone(),
+impl Display for EmailAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            None => {
+                write!(f, "{}", self.address)
+            }
+            Some(name) => {
+                write!(f, "{} <{}>", name, self.address)
+            }
         }
     }
 }

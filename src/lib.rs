@@ -22,21 +22,20 @@ pub struct SendResponse {
 }
 
 impl Mailgun {
-    pub async fn send(self, sender: &EmailAddress) -> SendResult<SendResponse> {
-        let client = reqwest::Client::new();
-        let mut params = self.message.to_params();
+    pub fn send(self, sender: &EmailAddress) -> SendResult<SendResponse> {
+        let client = reqwest::blocking::Client::new();
+        let mut params = self.message.generate_params();
         params.insert("from".to_string(), sender.to_string());
         let url = format!("{}/{}/{}", MAILGUN_API, self.domain, MESSAGES_ENDPOINT);
 
         let res = client
             .post(&url)
-            .basic_auth("api", Some(self.api_key.clone()))
+            .basic_auth("api", Some(self.api_key))
             .form(&params)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?;
 
-        let parsed: SendResponse = res.json().await?;
+        let parsed: SendResponse = res.json()?;
         Ok(parsed)
     }
 }
@@ -52,7 +51,7 @@ pub struct Message {
 }
 
 impl Message {
-    fn to_params(self) -> HashMap<String, String> {
+    fn generate_params(self) -> HashMap<String, String> {
         let mut params = HashMap::new();
 
         Message::add_recipients("to", self.to, &mut params);
